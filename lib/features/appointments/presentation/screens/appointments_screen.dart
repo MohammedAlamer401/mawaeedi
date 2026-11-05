@@ -14,14 +14,27 @@ import '../widgets/appointment_card.dart';
 
 /// كل المواعيد (القسم 4.3): مرشحات اليوم، القادمة، السابقة، المكتملة.
 class AppointmentsScreen extends ConsumerStatefulWidget {
-  const AppointmentsScreen({super.key});
+  const AppointmentsScreen({super.key, this.initialTab});
+
+  /// اسم التبويب من الرابط (مثلاً `past` من تنبيه «مواعيد فاتت»).
+  final String? initialTab;
 
   @override
   ConsumerState<AppointmentsScreen> createState() => _AppointmentsScreenState();
 }
 
 class _AppointmentsScreenState extends ConsumerState<AppointmentsScreen> {
-  var _tab = AppointmentTab.upcoming;
+  late var _tab = _parse(widget.initialTab) ?? AppointmentTab.upcoming;
+
+  static AppointmentTab? _parse(String? name) =>
+      AppointmentTab.values.where((t) => t.name == name).firstOrNull;
+
+  @override
+  void didUpdateWidget(covariant AppointmentsScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final tab = _parse(widget.initialTab);
+    if (tab != null && widget.initialTab != oldWidget.initialTab) _tab = tab;
+  }
 
   @override
   Widget build(BuildContext context) {

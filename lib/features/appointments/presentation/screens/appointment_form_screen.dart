@@ -227,13 +227,13 @@ class _AppointmentFormScreenState extends ConsumerState<AppointmentFormScreen> {
                       const SizedBox(height: 6),
                       Text(DateFormatter.full(_date!), style: context.text.caption),
                     ],
-                    gap,
-                    const FieldLabel('التذكير'),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 24),
+                    const FormSectionTitle('التذكير'),
+                    const SizedBox(height: 10),
                     _ReminderPicker(value: _reminder, onChanged: (v) => _touch(() => _reminder = v)),
                     if (_reminder != null && _startAt != null) ...[
-                      const SizedBox(height: 8),
-                      _ReminderHint(startAt: _startAt!, minutes: _reminder!),
+                      const SizedBox(height: 16),
+                      _ReminderSummary(startAt: _startAt!, minutes: _reminder!),
                     ],
                     gap,
                     LabeledField(
@@ -269,6 +269,7 @@ class _AppointmentFormScreenState extends ConsumerState<AppointmentFormScreen> {
   }
 }
 
+/// خيارات التذكير في صف واحد بعرض متساوٍ.
 class _ReminderPicker extends StatelessWidget {
   const _ReminderPicker({required this.value, required this.onChanged});
 
@@ -276,35 +277,51 @@ class _ReminderPicker extends StatelessWidget {
   final ValueChanged<int?> onChanged;
 
   static String _label(int? m) => switch (m) {
-        null => 'بدون تذكير',
+        null => 'بدون',
         60 => 'ساعة',
         _ => '$m د',
       };
 
   @override
   Widget build(BuildContext context) {
-    final chip = Theme.of(context).chipTheme;
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
+    final p = context.palette;
+    return Row(
       children: [
-        for (final m in reminderOptions)
-          ChoiceChip(
-            label: Text(_label(m)),
-            avatar: m == null ? const Icon(Icons.notifications_off_outlined, size: 18) : null,
-            selected: value == m,
-            showCheckmark: false,
-            labelStyle: value == m ? chip.secondaryLabelStyle : null,
-            onSelected: (_) => onChanged(m),
+        for (final (i, m) in reminderOptions.indexed) ...[
+          if (i > 0) const SizedBox(width: 6),
+          Expanded(
+            child: Material(
+              color: value == m ? p.primarySoft : p.surface,
+              shape: StadiumBorder(side: BorderSide(color: value == m ? p.primary : p.border)),
+              child: InkWell(
+                customBorder: const StadiumBorder(),
+                onTap: () => onChanged(m),
+                child: SizedBox(
+                  height: 44,
+                  child: Center(
+                    child: Text(
+                      _label(m),
+                      style: AppTextStyles.tabular(AppTextStyles.style(
+                        13.5,
+                        value == m ? FontWeight.w700 : FontWeight.w500,
+                        color: value == m ? p.primary : p.textPrimary,
+                      )),
+                      maxLines: 1,
+                    ),
+                  ),
+                ),
+              ),
+            ),
           ),
+        ],
       ],
     );
   }
 }
 
-/// يوضح متى سيصل التذكير بالضبط.
-class _ReminderHint extends StatelessWidget {
-  const _ReminderHint({required this.startAt, required this.minutes});
+/// صندوق ناعم يوضح متى سيصل التذكير — مثل «مستحقاتي من الخدمة» في «نسبتي».
+class _ReminderSummary extends StatelessWidget {
+  const _ReminderSummary({required this.startAt, required this.minutes});
 
   final DateTime startAt;
   final int minutes;
@@ -313,20 +330,34 @@ class _ReminderHint extends StatelessWidget {
   Widget build(BuildContext context) {
     final p = context.palette;
     final at = startAt.subtract(Duration(minutes: minutes));
-    final passed = at.isBefore(DateTime.now());
-    return Row(
-      children: [
-        Icon(Icons.notifications_active_rounded, size: 16, color: passed ? p.warning : p.primary),
-        const SizedBox(width: 6),
-        Expanded(
-          child: Text(
-            passed
-                ? 'وقت التذكير مضى؛ ستُنبَّه عند بدء الموعد إن لم يفت'
-                : '${ArabicPlural.reminder(minutes)} · ${DateFormatter.relativeDay(at)} ${DateFormatter.time(at)}',
-            style: context.text.caption.copyWith(color: passed ? p.warning : null),
+    final now = DateTime.now();
+    final passed = at.isBefore(now);
+    final fireAt = passed ? startAt : at;
+    final fg = passed ? p.warning : p.primaryDark;
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: passed ? p.warningSoft : p.primarySoft,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('سيصلك التذكير', style: AppTextStyles.style(15, FontWeight.w500, color: fg)),
+          const SizedBox(height: 6),
+          Text(
+            startAt.isBefore(now) ? 'لن يصل — الموعد مضى' : DateFormatter.time(fireAt),
+            style: AppTextStyles.tabular(AppTextStyles.style(30, FontWeight.w700, color: fg, height: 1.3)),
           ),
-        ),
-      ],
+          const SizedBox(height: 4),
+          Text(
+            passed
+                ? 'وقت التذكير مضى، فستُنبَّه عند بدء الموعد'
+                : '${DateFormatter.relativeDay(fireAt)} · ${ArabicPlural.reminder(minutes)}',
+            style: context.text.caption,
+          ),
+        ],
+      ),
     );
   }
 }

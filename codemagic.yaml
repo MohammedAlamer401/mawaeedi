@@ -35,10 +35,21 @@ workflows:
       - *get_packages
       - *analyze
       - *test
-      - name: Build APK
-        script: flutter build apk --release --build-number=$PROJECT_BUILD_NUMBER
+      - name: Build APKs
+        script: |
+          flutter build apk --release --build-number=$PROJECT_BUILD_NUMBER
+          flutter build apk --release --split-per-abi --build-number=$PROJECT_BUILD_NUMBER
+      # نفس تسمية «نسبتي»: mawaeedi-<الإصدار>-<رقم البناء>[-المعمارية].apk
+      - name: Rename APKs
+        script: |
+          cd build/app/outputs/flutter-apk
+          V=$(grep '^version:' $CM_BUILD_DIR/pubspec.yaml | sed 's/version: //; s/+.*//')
+          N=$PROJECT_BUILD_NUMBER
+          mv app-release.apk "mawaeedi-$V-$N.apk"
+          mv app-arm64-v8a-release.apk "mawaeedi-$V-$N-arm64.apk"
+          mv app-armeabi-v7a-release.apk "mawaeedi-$V-$N-armv7.apk"
     artifacts:
-      - build/app/outputs/flutter-apk/app-release.apk
+      - build/app/outputs/flutter-apk/mawaeedi-*.apk
 
   ios-unsigned:
     name: iOS build check (unsigned)

@@ -79,6 +79,17 @@ class LabeledField extends StatelessWidget {
   }
 }
 
+/// عنوان قسم داخل النموذج بلون أساسي (مثل «الحساب» في «نسبتي»).
+class FormSectionTitle extends StatelessWidget {
+  const FormSectionTitle(this.text, {super.key});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) =>
+      Text(text, style: AppTextStyles.style(16, FontWeight.w600, color: context.palette.primary));
+}
+
 /// حقل اختيار (تاريخ أو وقت) بنفس شكل الحقول النصية، يفتح منتقياً عند الضغط.
 class PickerField extends StatelessWidget {
   const PickerField({
@@ -113,7 +124,7 @@ class PickerField extends StatelessWidget {
             isEmpty: value == null,
             decoration: InputDecoration(
               errorText: errorText,
-              prefixIcon: Icon(icon, color: p.primary, size: 20),
+              suffixIcon: Icon(icon, color: p.textSecondary, size: 24),
               hintText: 'اختر',
               hintStyle: context.text.body.copyWith(color: p.textSecondary),
             ),

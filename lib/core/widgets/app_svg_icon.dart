@@ -17,6 +17,7 @@ abstract final class AppSvgIcons {
   static const theme = '$_base/theme.svg';
   static const info = '$_base/info.svg';
   static const alarm = '$_base/alarm.svg';
+  static const profile = '$_base/profile.svg';
 }
 
 /// أيقونة SVG بألوانها الأصلية، والحالة غير النشطة تُعرض رمادية ([muted]).

@@ -8,6 +8,8 @@ import '../../../core/notifications/notification_service.dart';
 import '../../../core/notifications/permission_flow.dart';
 import '../../../core/widgets/app_svg_icon.dart';
 import '../../../core/widgets/confirm_dialog.dart';
+import '../../../core/widgets/labeled_field.dart';
+import '../../../core/widgets/user_avatar.dart';
 import '../../appointments/controllers/appointments_controller.dart';
 import '../data/settings_repository.dart';
 
@@ -18,7 +20,7 @@ final notificationSystemStateProvider =
   return (await service.permissionStatus(), await service.canScheduleExact());
 });
 
-/// الإعدادات (القسم 4.4).
+/// «حسابي»: بطاقة الاسم ثم الإعدادات (القسم 4.4) — بنفس ترتيب إعدادات «نسبتي».
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
 
@@ -60,6 +62,43 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     // يُعاد الحساب عند العودة من شاشة النظام عبر onResume.
   }
 
+  Future<void> _editName(String? current) async {
+    final controller = TextEditingController(text: current ?? '');
+    final formKey = GlobalKey<FormState>();
+    final saved = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) => Padding(
+        padding: EdgeInsets.fromLTRB(20, 0, 20, MediaQuery.viewInsetsOf(context).bottom + 24),
+        child: Form(
+          key: formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text('اسمك', style: context.text.cardTitle),
+              const SizedBox(height: 16),
+              LabeledField(
+                label: 'الاسم',
+                controller: controller,
+                hint: 'مثال: محمد',
+                maxLength: 40,
+                autofocus: true,
+                textInputAction: TextInputAction.done,
+              ),
+              const SizedBox(height: 8),
+              Text('يظهر في التحية على الشاشة الرئيسية فقط، ويبقى على هاتفك.', style: context.text.caption),
+              const SizedBox(height: 20),
+              FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('حفظ')),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (saved == true) await ref.read(settingsProvider.notifier).setDisplayName(controller.text);
+    controller.dispose();
+  }
+
   Future<void> _pickTheme(ThemeMode current) async {
     final picked = await showModalBottomSheet<ThemeMode>(
       context: context,
@@ -94,10 +133,20 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final p = context.palette;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('الإعدادات')),
+      appBar: AppBar(title: const Text('حسابي')),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 4, 16, 32),
         children: [
+          Card(
+            child: ListTile(
+              contentPadding: const EdgeInsetsDirectional.fromSTEB(16, 10, 12, 10),
+              leading: const CurrentUserAvatar(radius: 28),
+              title: Text(settings.displayName ?? 'أضف اسمك', style: context.text.cardTitle.copyWith(fontSize: 17)),
+              subtitle: const Text('مواعيدي الشخصية'),
+              trailing: const Icon(Icons.chevron_left_rounded),
+              onTap: () => _editName(settings.displayName),
+            ),
+          ),
           const _SectionTitle('الإشعارات'),
           _Group(children: [
             SwitchListTile(

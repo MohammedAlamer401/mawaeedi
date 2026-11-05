@@ -85,6 +85,22 @@ class AppointmentRepository {
     return _map(rows).where((a) => a.remindAt!.isAfter(now)).toList();
   }
 
+  /// المواعيد التي يقع وقت تذكيرها بين [from] و[to] (لشاشة الإشعارات).
+  Future<List<Appointment>> getRemindersBetween(DateTime from, DateTime to) async {
+    // وقت التذكير يسبق الموعد بيوم على الأكثر، فنوسّع نافذة البحث بيوم.
+    final rows = await _db.query(
+      _table,
+      where: 'reminder_minutes IS NOT NULL AND start_at >= ? AND start_at < ?',
+      whereArgs: [_s(from), _s(to.add(const Duration(days: 1)))],
+    );
+    final list = _map(rows).where((a) {
+      final at = a.remindAt!;
+      return !at.isBefore(from) && at.isBefore(to);
+    }).toList()
+      ..sort((a, b) => a.remindAt!.compareTo(b.remindAt!));
+    return list;
+  }
+
   Future<void> updateAppointment(Appointment appointment) async {
     await _db.update(_table, appointment.toMap(), where: 'id = ?', whereArgs: [appointment.id]);
   }

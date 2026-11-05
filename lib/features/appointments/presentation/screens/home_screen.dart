@@ -9,24 +9,39 @@ import '../../../../core/formatting/arabic_plural.dart';
 import '../../../../core/formatting/date_formatter.dart';
 import '../../../../core/widgets/app_svg_icon.dart';
 import '../../../../core/widgets/empty_state.dart';
+import '../../../../core/widgets/summary_card.dart';
+import '../../../../core/widgets/user_avatar.dart';
+import '../../../notifications/notifications_providers.dart';
+import '../../../settings/data/settings_repository.dart';
 import '../../controllers/appointments_controller.dart';
 import '../../data/appointment_model.dart';
 import '../widgets/appointment_actions.dart';
 import '../widgets/appointment_card.dart';
 
-/// الشاشة الرئيسية (القسم 4.1): تاريخ اليوم، ملخص، مواعيد اليوم والقادمة.
+/// الرئيسية (القسم 4.1) بترتيب «ملخص أعمالي» في «نسبتي»:
+/// تحية، شارة التاريخ، بطاقات الملخص، أشرطة التنبيه، ثم القوائم.
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final p = context.palette;
     final today = ref.watch(appointmentsByTabProvider(AppointmentTab.today));
     final upcoming = ref.watch(upcomingPreviewProvider);
+    final upcomingAll = ref.watch(appointmentsByTabProvider(AppointmentTab.upcoming));
+    final past = ref.watch(appointmentsByTabProvider(AppointmentTab.past));
+    final blocked = ref.watch(remindersBlockedProvider);
+
     final todayList = today.value ?? const <Appointment>[];
     final upcomingList = upcoming.value ?? const <Appointment>[];
-    final loading = today.isLoading && !today.hasValue;
-    final remainingToday = todayList.where((a) => !a.isCompleted).length;
-    final nothing = !loading && todayList.isEmpty && upcomingList.isEmpty && upcoming.hasValue;
+    final upcomingCount = upcomingAll.value?.length ?? 0;
+    final now = DateTime.now();
+    final doneToday = todayList.where((a) => a.isCompleted).length;
+    final leftToday = todayList.where((a) => !a.isCompleted && !a.startAt.isBefore(now)).length;
+    // الفائتة: من الأيام السابقة + ما فات وقته اليوم ولم يُكمَل.
+    final missed = (past.value?.length ?? 0) + todayList.where((a) => a.isOverdue(now)).length;
+    final loading = !today.hasValue || !upcoming.hasValue;
+    final nothing = !loading && todayList.isEmpty && upcomingList.isEmpty && missed == 0;
 
     return Scaffold(
       body: SafeArea(
@@ -36,13 +51,70 @@ class HomeScreen extends ConsumerWidget {
             padding: const EdgeInsetsDirectional.fromSTEB(16, 12, 16, 24),
             children: [
               const _Header(),
-              const SizedBox(height: 16),
-              _TodayHero(
-                count: todayList.length,
-                remaining: remainingToday,
-                upcoming: upcomingList.length,
-                onTap: () => context.go(AppRoutes.appointments),
+              const SizedBox(height: 12),
+              Align(alignment: AlignmentDirectional.centerStart, child: _DateChip(date: now)),
+              const SizedBox(height: 12),
+              SummaryCard(
+                title: 'مواعيد اليوم',
+                value: '${todayList.length}',
+                subtitle: todayList.isEmpty
+                    ? 'لا مواعيد اليوم'
+                    : leftToday == 0 && doneToday == todayList.length
+                        ? 'أنجزت كل مواعيد اليوم 🎉'
+                        : '${ArabicPlural.appointments(todayList.length)} في هذا اليوم',
+                icon: Icons.event_note_rounded,
+                large: true,
+                onTap: () => context.go(AppRoutes.appointmentsTab(AppointmentTab.today.name)),
               ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: SummaryCard(
+                      title: 'المكتملة منها',
+                      value: '$doneToday',
+                      icon: Icons.check_circle_rounded,
+                      accent: p.success,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: SummaryCard(
+                      title: 'المتبقي منها',
+                      value: '$leftToday',
+                      icon: Icons.schedule_rounded,
+                      accent: p.warning,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              _InfoRow(
+                label: 'المواعيد القادمة',
+                value: ArabicPlural.appointments(upcomingCount),
+                onTap: () => context.go(AppRoutes.appointmentsTab(AppointmentTab.upcoming.name)),
+              ),
+              if (missed > 0) ...[
+                const SizedBox(height: 12),
+                NoticeStrip(
+                  icon: Icons.history_rounded,
+                  text: 'مواعيد فات وقتها ولم تُكمَل',
+                  trailing: '$missed',
+                  background: p.warningSoft,
+                  foreground: p.warning,
+                  onTap: () => context.go(AppRoutes.appointmentsTab(AppointmentTab.past.name)),
+                ),
+              ],
+              if (blocked) ...[
+                const SizedBox(height: 12),
+                NoticeStrip(
+                  icon: Icons.notifications_off_rounded,
+                  text: 'التذكيرات متوقفة — لن يصلك أي تنبيه',
+                  background: p.errorSoft,
+                  foreground: p.error,
+                  onTap: () => context.go(AppRoutes.account),
+                ),
+              ],
               const SizedBox(height: 20),
               if (loading)
                 const Padding(padding: EdgeInsets.all(32), child: Center(child: CircularProgressIndicator()))
@@ -56,13 +128,12 @@ class HomeScreen extends ConsumerWidget {
                 )
               else ...[
                 _SectionHeader(
-                  icon: AppSvgIcons.clock,
                   title: 'مواعيد اليوم',
-                  trailing: todayList.isEmpty ? null : ArabicPlural.appointments(todayList.length),
+                  onShowAll: todayList.isEmpty ? null : () => context.go(AppRoutes.appointmentsTab('today')),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 4),
                 if (todayList.isEmpty)
-                  _InlineNote('لا مواعيد اليوم — استمتع بيومك')
+                  const _InlineNote('لا مواعيد اليوم — استمتع بيومك')
                 else
                   for (final a in todayList) ...[
                     AppointmentCard(
@@ -73,22 +144,25 @@ class HomeScreen extends ConsumerWidget {
                     ),
                     const SizedBox(height: 10),
                   ],
-                const SizedBox(height: 14),
+                const SizedBox(height: 10),
                 _SectionHeader(
-                  icon: AppSvgIcons.calendar,
                   title: 'المواعيد القادمة',
-                  action: upcomingList.isEmpty ? null : ('عرض الكل', () => context.go(AppRoutes.appointments)),
+                  onShowAll: upcomingList.isEmpty ? null : () => context.go(AppRoutes.appointmentsTab('upcoming')),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 4),
                 if (upcomingList.isEmpty)
-                  _InlineNote('لا مواعيد قادمة بعد اليوم')
+                  const _InlineNote('لا مواعيد قادمة بعد اليوم')
                 else
                   for (final a in upcomingList) ...[
                     AppointmentCard(appointment: a, onTap: () => showAppointmentSheet(context, a)),
                     const SizedBox(height: 10),
                   ],
-                const SizedBox(height: 8),
-                _AddButton(onPressed: () => context.push(AppRoutes.newAppointment)),
+                const SizedBox(height: 6),
+                FilledButton.icon(
+                  onPressed: () => context.push(AppRoutes.newAppointment),
+                  icon: const Icon(Icons.add_rounded),
+                  label: const Text('إضافة موعد'),
+                ),
               ],
             ],
           ),
@@ -98,111 +172,83 @@ class HomeScreen extends ConsumerWidget {
   }
 }
 
-class _Header extends StatelessWidget {
+/// «مرحباً، محمد» فوق عنوان كبير، والصورة الدائرية بجانبها — كما في «نسبتي».
+class _Header extends ConsumerWidget {
   const _Header();
 
   @override
-  Widget build(BuildContext context) {
-    final now = DateTime.now();
-    final greeting = now.hour < 12 ? 'صباح الخير' : 'مساء الخير';
+  Widget build(BuildContext context, WidgetRef ref) {
+    final firstName = ref.watch(settingsProvider.select((s) => s.firstName));
     return Row(
       children: [
-        const MawaeediLogo(size: 44),
+        InkWell(
+          onTap: () => context.go(AppRoutes.account),
+          customBorder: const CircleBorder(),
+          child: const CurrentUserAvatar(radius: 28),
+        ),
         const SizedBox(width: 12),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('$greeting 👋', style: context.text.caption),
-              Text('مواعيدي', style: context.text.screenTitle),
+              Text(firstName == null ? 'مرحباً' : 'مرحباً، $firstName', style: context.text.caption.copyWith(fontSize: 14)),
+              Text('ملخص يومي', style: AppTextStyles.style(26, FontWeight.w600, color: context.palette.textPrimary, height: 1.4)),
             ],
           ),
         ),
-        Text(DateFormatter.full(now), style: context.text.caption),
       ],
     );
   }
 }
 
-/// البطاقة الزرقاء الكبرى: عدد مواعيد اليوم والمتبقي منها والقادمة.
-class _TodayHero extends StatelessWidget {
-  const _TodayHero({required this.count, required this.remaining, required this.upcoming, required this.onTap});
+/// شارة التاريخ بنفس شكل زر الفترة في «نسبتي».
+class _DateChip extends StatelessWidget {
+  const _DateChip({required this.date});
 
-  final int count;
-  final int remaining;
-  final int upcoming;
-  final VoidCallback onTap;
+  final DateTime date;
 
   @override
   Widget build(BuildContext context) {
     final p = context.palette;
-    final subtitle = count == 0
-        ? 'يومك فارغ'
-        : remaining == 0
-            ? 'أنجزت كل مواعيد اليوم 🎉'
-            : 'متبقٍّ: ${ArabicPlural.appointments(remaining)}';
-    return Material(
-      borderRadius: BorderRadius.circular(22),
+    return Container(
+      padding: const EdgeInsetsDirectional.symmetric(horizontal: 16, vertical: 10),
+      decoration: BoxDecoration(
+        color: p.surface,
+        borderRadius: BorderRadius.circular(28),
+        border: Border.all(color: p.border),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const AppSvgIcon(AppSvgIcons.calendar, size: 20),
+          const SizedBox(width: 8),
+          Text(DateFormatter.full(date), style: AppTextStyles.tabular(context.text.label)),
+        ],
+      ),
+    );
+  }
+}
+
+class _InfoRow extends StatelessWidget {
+  const _InfoRow({required this.label, required this.value, this.onTap});
+
+  final String label;
+  final String value;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
       clipBehavior: Clip.antiAlias,
-      child: Ink(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: AlignmentDirectional.topStart,
-            end: AlignmentDirectional.bottomEnd,
-            colors: [p.primary, BrandColors.primaryDark],
-          ),
-        ),
-        child: InkWell(
-          onTap: onTap,
-          child: Stack(
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsetsDirectional.fromSTEB(16, 14, 10, 14),
+          child: Row(
             children: [
-              PositionedDirectional(
-                top: -40,
-                end: -30,
-                child: Container(
-                  width: 140,
-                  height: 140,
-                  decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.08), shape: BoxShape.circle),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.all(20),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'مواعيد اليوم',
-                            style: AppTextStyles.style(15, FontWeight.w600, color: Colors.white.withValues(alpha: 0.9)),
-                          ),
-                          const SizedBox(height: 4),
-                          Text('$count', style: context.text.countLarge),
-                          const SizedBox(height: 4),
-                          Text(subtitle, style: AppTextStyles.style(13.5, FontWeight.w500, color: Colors.white)),
-                          if (upcoming > 0)
-                            Text(
-                              'وبعده ${ArabicPlural.appointments(upcoming)} قادمة',
-                              style: AppTextStyles.style(12.5, FontWeight.w400, color: Colors.white.withValues(alpha: 0.8)),
-                            ),
-                        ],
-                      ),
-                    ),
-                    Container(
-                      width: 64,
-                      height: 64,
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.16),
-                        borderRadius: BorderRadius.circular(18),
-                      ),
-                      child: const Icon(Icons.event_available_rounded, color: Colors.white, size: 34),
-                    ),
-                    const SizedBox(width: 8),
-                    const Icon(Icons.chevron_left_rounded, color: Colors.white),
-                  ],
-                ),
-              ),
+              Expanded(child: Text(label, style: context.text.labelMuted)),
+              Text(value, style: AppTextStyles.tabular(context.text.cardTitle)),
+              if (onTap != null) Icon(Icons.chevron_left_rounded, color: context.palette.textSecondary),
             ],
           ),
         ),
@@ -212,22 +258,17 @@ class _TodayHero extends StatelessWidget {
 }
 
 class _SectionHeader extends StatelessWidget {
-  const _SectionHeader({required this.icon, required this.title, this.trailing, this.action});
+  const _SectionHeader({required this.title, this.onShowAll});
 
-  final String icon;
   final String title;
-  final String? trailing;
-  final (String, VoidCallback)? action;
+  final VoidCallback? onShowAll;
 
   @override
   Widget build(BuildContext context) {
     return Row(
       children: [
-        AppSvgIcon(icon, size: 20),
-        const SizedBox(width: 8),
         Expanded(child: Text(title, style: context.text.cardTitle.copyWith(fontSize: 16))),
-        if (trailing != null) Text(trailing!, style: context.text.caption),
-        if (action case (final label, final onTap)) TextButton(onPressed: onTap, child: Text(label)),
+        if (onShowAll != null) TextButton(onPressed: onShowAll, child: const Text('عرض الكل')),
       ],
     );
   }
@@ -240,32 +281,11 @@ class _InlineNote extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      decoration: BoxDecoration(
-        color: context.palette.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: context.palette.border),
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        child: Text(text, style: context.text.labelMuted),
       ),
-      child: Text(text, style: context.text.labelMuted),
-    );
-  }
-}
-
-/// زر الإضافة بخلفية ناعمة كما في لوحة التصميم.
-class _AddButton extends StatelessWidget {
-  const _AddButton({required this.onPressed});
-
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    final p = context.palette;
-    return FilledButton.icon(
-      onPressed: onPressed,
-      style: FilledButton.styleFrom(backgroundColor: p.primarySoft, foregroundColor: p.primary),
-      icon: const Icon(Icons.add_rounded),
-      label: const Text('إضافة موعد جديد'),
     );
   }
 }

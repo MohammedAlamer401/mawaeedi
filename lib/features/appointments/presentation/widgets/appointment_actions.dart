@@ -111,7 +111,12 @@ class _AppointmentSheet extends ConsumerWidget {
                 Navigator.pop(context);
                 await toggleCompleted(parent, ref, a);
               },
-              style: a.isCompleted ? null : FilledButton.styleFrom(backgroundColor: p.success),
+              style: a.isCompleted
+                  ? null
+                  : FilledButton.styleFrom(
+                      backgroundColor: p.success,
+                      foregroundColor: Theme.of(context).brightness == Brightness.dark ? p.background : Colors.white,
+                    ),
               icon: Icon(a.isCompleted ? Icons.undo_rounded : Icons.check_rounded),
               label: Text(a.isCompleted ? 'إعادة إلى المجدولة' : 'تحديد كمكتمل'),
             ),

@@ -133,7 +133,7 @@ abstract final class AppTheme {
         ),
       ),
       listTileTheme: ListTileThemeData(
-        iconColor: p.primary,
+        iconColor: p.textSecondary,
         titleTextStyle: AppTextStyles.style(15, FontWeight.w500, color: p.textPrimary),
         subtitleTextStyle: AppTextStyles.style(12.5, FontWeight.w400, color: p.textSecondary),
       ),

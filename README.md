@@ -14,7 +14,13 @@ flutter run
 ## الاختبارات
 
 ```bash
-flutter test
+flutter test test/
+```
+
+صور الشاشات للمراجعة البصرية (بنفس أداة «نسبتي»، تُحفظ في `build/screenshots/`):
+
+```bash
+flutter test tool/screenshots_test.dart --update-goldens
 ```
 
 > ملاحظة: إن تعطّل `flutter analyze` بسبب الأحرف العربية في مسار المجلد، استخدم `dart analyze`.
@@ -33,7 +39,8 @@ lib/
   features/
     appointments/               النموذج، المستودع، المتحكم، الشاشات
     settings/                   التفضيلات وشاشة الإعدادات
-    splash/  shell/             شاشة الإقلاع والتنقل السفلي
+    notifications/              تبويب الإشعارات: التذكيرات القادمة وما وصل، وشارة غير المقروء
+    splash/  shell/             شاشة الإقلاع والتنقل السفلي (الرئيسية، مواعيدي، الإشعارات، حسابي)
 ```
 
 ## قواعد مهمة
@@ -52,6 +59,13 @@ dart run flutter_native_splash:create
 
 صور الأيقونة في `assets/brand/`.
 
-## البناء السحابي
+## البناء والتوزيع (مثل «نسبتي»)
 
-`codemagic.yaml`: بناء APK تلقائياً مع كل push على `main`، وبناء iOS يدوياً.
+`codemagic.yaml` على Codemagic:
+
+- **android-apk** — تلقائي مع كل push على `main`: تحليل واختبارات ثم ثلاثة ملفات
+  `mawaeedi-<الإصدار>-<رقم البناء>.apk` و`-arm64` و`-armv7` (الأصغر لمعظم الهواتف: arm64).
+- **ios-unsigned** — يدوي: IPA غير موقّع يُثبَّت عبر Sideloadly أو AltStore.
+- **ios-testflight** — يدوي، يحتاج حساب Apple Developer.
+
+البناء المحلي على Windows: الأحرف العربية في مسار المجلد تمنع AOT؛ ابنِ من نسخة في مسار إنجليزي.
